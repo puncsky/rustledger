@@ -175,42 +175,89 @@ Every repository in the `rustledger` organization: `rustledger`, `rustfava`,
 
 ### Checking before commenting
 
-Participation is checked, never assumed. Ask GitHub whether an account is a
-bot — `.user.type` and `is_bot` are authoritative — rather than matching on the
-name. The same reviewer appears as `Copilot` on one endpoint and
-`copilot-pull-request-reviewer[bot]` on another, so a name list silently
-misclassifies it as a person.
+Participation is checked, never assumed. The check below covers Issues, Pull
+Requests, and Discussions, and it **fails closed**: if a thread cannot be
+positively identified and fully read, it reports that rather than reporting
+nobody.
 
 ```bash
-# Humans other than the maintainer involved in issue/PR <N>.
-# Empty output => the maintainer's alone => an AI may comment directly.
+# Humans other than the maintainer involved in Issue, PR, or Discussion <N>.
 #
-# `gh api` prints its error body to STDOUT on 404, and the two /pulls/
-# endpoints 404 for a plain issue — so each call is guarded by its exit status.
-# Without that, every issue looks like it has a participant named
-# `{"message":"Not Found"...}` and the check blocks on its own noise.
+#   empty output  => the maintainer's alone => an AI may comment directly
+#   anything else => draft only
+#
+# Fails CLOSED: if the thread cannot be identified and fully read, it prints
+# `!unchecked: <reason>` on stdout and returns non-zero. Stdout, not stderr, so
+# that a caller testing "is the output empty?" treats a failed check as
+# "someone is involved" rather than as permission.
 others() {
   repo="${1:-rustledger/rustledger}"; n="$2"
-  for ep in "issues/$n" "issues/$n/comments" "pulls/$n/comments" "pulls/$n/reviews"; do
+  if kind=$(gh api "repos/$repo/issues/$n" --jq 'if .pull_request then "pr" else "issue" end' 2>/dev/null); then :
+  elif gh api "repos/$repo/discussions/$n" --jq '.number' >/dev/null 2>&1; then kind=discussion
+  else echo "!unchecked: could not read $repo#$n as an issue, PR, or discussion"; return 2
+  fi
+  case "$kind" in
+    issue)      eps="issues/$n issues/$n/comments" ;;
+    pr)         eps="issues/$n issues/$n/comments pulls/$n/comments pulls/$n/reviews" ;;
+    discussion) eps="discussions/$n discussions/$n/comments" ;;  # comments include replies, flattened
+  esac
+  names=""
+  for ep in $eps; do
     case "$ep" in
-      "issues/$n") q='select(.user.type=="User") | .user.login' ;;
-      *)           q='.[] | select(.user.type=="User") | .user.login' ;;
+      */comments|*/reviews) q='.[] | select(.user.type=="User") | .user.login' ;;
+      *)                    q='select(.user.type=="User") | .user.login' ;;
     esac
-    if out=$(gh api "repos/$repo/$ep" --jq "$q" 2>/dev/null); then
-      printf '%s\n' "$out"
+    # Every endpoint here exists for this kind of thread, so ANY failure means
+    # the check did not happen. No 404 is expected, so none is swallowed.
+    if ! out=$(gh api --paginate "repos/$repo/$ep" --jq "$q" 2>/dev/null); then
+      echo "!unchecked: $ep failed"; return 2
     fi
-  done | sort -u | grep -v '^robcohen$' | grep -v '^$'
+    names="$names
+$out"
+  done
+  printf '%s\n' "$names" | sort -u | grep -v '^robcohen$' | grep -v '^$'
+  return 0
 }
 ```
 
-All four endpoints are needed. Issue comments and review-thread comments are
-separate APIs, and a human reviewer leaving an inline comment appears only in
-`pulls/<N>/comments` — exactly the case this policy exists for. The first call
-catches an issue opened by someone else that nobody has replied to yet.
+Why it is shaped like this — each point was a wrong answer in an earlier
+version:
 
-Verified against this repo: `#2300`, `#2302`, `#2303` return nothing (the
-maintainer plus bots), while `#1387` returns `bkuhn caesar`, `#923` returns
-`alensiljak`, and `#2264` / `#2295` return `petemounce`.
+- **It fails closed.** An earlier version swallowed failures to avoid tripping
+  on 404s, so an expired token made it return nothing — permission — on a
+  thread with two other humans on it. A check that cannot run must not grant.
+- **It identifies the thread first.** Issues, PRs, and Discussions share one
+  number sequence, and a Discussion number 404s on `issues/<N>`. Knowing the
+  type up front means no 404 is ever expected, so none has to be ignored.
+- **Discussions have their own endpoints.** `discussions/<N>/comments` returns
+  replies flattened alongside top-level comments, so a person who only ever
+  replied inside a thread is still found.
+- **A PR needs all four endpoints.** Review-thread comments are a separate API,
+  and an inline human reviewer appears only in `pulls/<N>/comments`.
+- **Bots are identified by `.user.type`, never by name.** The same reviewer is
+  `Copilot` on one endpoint and `copilot-pull-request-reviewer[bot]` on another.
+- **Every call paginates.** Threads here reach 197 comments against a default
+  page of 30.
+
+Verified against this repo:
+
+| Thread | Result |
+|--------|--------|
+| Issue #1387 | `bkuhn caesar` → draft only |
+| Issue #923 | `alensiljak` → draft only |
+| Discussion #2268 | `petemounce vqv` → draft only |
+| Discussion #881, #1420 | `alensiljak`, `zacchiro` — found only in replies → draft only |
+| Discussion #2293 | `apearson`, the author, who never commented → draft only |
+| PR #2300, Issue #2302 | nothing → may comment |
+| Expired token, mistyped repo, nonexistent number | `!unchecked` → draft only |
+| An endpoint failing after the thread is identified | `!unchecked` → draft only |
+
+### Where this policy is enforced
+
+The policy covers the whole organization, but only this repository carries it
+in `CLAUDE.md` and `AGENTS.md`; no other org repository has either file. An
+assistant working in another org repository will not read this document, so do
+not rely on it as the enforcement there.
 
 ### When the policy blocks a comment
 
