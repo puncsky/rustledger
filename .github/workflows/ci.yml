@@ -106,7 +106,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
           components: rustfmt
       - run: cargo fmt --all -- --check
   # Release hygiene: the crates.io publish list in release-publish.yml must
@@ -124,7 +124,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       - name: Verify release-publish CRATES array matches publishable crates
         run: python3 scripts/check-publish-crates.py
   # Wire-format bindings freshness gate (ADR-0004, #1218 + #1232).
@@ -144,7 +144,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       # Node for the prettier pass in `scripts/regen-bindings.sh`
       # (#1226). Read from `.nvmrc` to keep the version in one place --
       # matches the convention in `wasm.yml` (single source of truth).
@@ -259,7 +259,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       # Required: sccache is RUSTC_WRAPPER at the workflow level, so a job that
       # compiles Rust without installing it dies on cargo's `-vV` probe with
       # "could not execute process sccache" — which is how this job failed the
@@ -363,7 +363,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       # `examples/*` each declare their own `[workspace]`, deliberately: they
       # model what a third-party plugin crate looks like. That also means
       # `cargo test --workspace` never builds them, so nothing in CI compiled
@@ -561,7 +561,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
           components: ${{ matrix.components }}
           # wasm32 needed by rustledger-importer's build.rs (which
           # compiles the sample_stub fixture for the wasm_importer_e2e
@@ -597,7 +597,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Run doctests
@@ -612,7 +612,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Build rledger
@@ -644,7 +644,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # `cargo bench` compiles the lib WITHOUT its `#[test]` fns (only `#[bench]`
@@ -684,7 +684,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Forbid wasmtime in --no-default-features build
         run: ./scripts/check-slim-no-wasmtime.sh
@@ -703,7 +703,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
           targets: wasm32-wasip2
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
