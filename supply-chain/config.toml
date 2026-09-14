@@ -256,7 +256,7 @@ version = "2.0.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.dirs]]
-version = "6.0.0"
+version = "7.0.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.dirs-sys]]
@@ -693,10 +693,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.shell-words]]
 version = "1.1.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.shlex]]
-version = "2.0.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.signal-hook-registry]]
