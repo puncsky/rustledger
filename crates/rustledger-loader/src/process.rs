@@ -387,7 +387,27 @@ pub fn process(raw: LoadResult, options: &LoadOptions) -> Result<Ledger, Process
     // reference so `raw` stays borrowable for the rest of the pipeline
     // (the phase transitions and validator setup below borrow it).
     for load_err in &raw.errors {
-        errors.push(LedgerError::error("LOAD", load_err.to_string()).with_phase("parse"));
+        let mut err = LedgerError::error("LOAD", load_err.to_string()).with_phase("parse");
+        if let Some(site) = load_err.include_site() {
+            // Prefer the source map for line/col so byte spans stay authoritative.
+            if let Some(file) = raw.source_map.get(site.file_id as usize) {
+                let (line, column) = file.line_col(site.span.start);
+                err = err
+                    .with_location(ErrorLocation {
+                        file: site.file.clone(),
+                        line,
+                        column,
+                    })
+                    .with_source_span((site.span.start, site.span.end), site.file_id);
+            } else {
+                err = err.with_location(ErrorLocation {
+                    file: site.file.clone(),
+                    line: 1,
+                    column: 1,
+                });
+            }
+        }
+        errors.push(err);
     }
 
     // Phase-typed pipeline (issue #1166). The phantom-typed

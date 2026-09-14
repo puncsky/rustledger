@@ -72,8 +72,20 @@ fn load_errors_to_errors(load_result: &LoadResult) -> Vec<Error> {
                 }
             }
             other => {
-                // Other errors use default string conversion
-                errors.push(Error::new(other.to_string()));
+                // Other errors use default string conversion. When the failure
+                // came from an `include`, attach that directive's file/line so
+                // hosts (dashboard Errors page, mobile notifications) are not
+                // forced to show "Unknown".
+                let mut err = Error::new(other.to_string()).with_phase("parse");
+                if let Some(site) = other.include_site() {
+                    err = err.with_file(Some(site.file.display().to_string()));
+                    if let Some(file) = load_result.source_map.get(site.file_id as usize) {
+                        let (sl, sc) = file.line_col(site.span.start);
+                        let (el, ec) = file.line_col(site.span.end);
+                        err = err.with_span((sl as u32, sc as u32), (el as u32, ec as u32));
+                    }
+                }
+                errors.push(err);
             }
         }
     }
@@ -1015,5 +1027,35 @@ mod load_error_tests {
             include_path: "../../etc/passwd".to_string(),
             base_dir: std::path::PathBuf::from("/ledger"),
         }));
+    }
+
+    #[test]
+    fn missing_include_error_carries_include_file_and_line() {
+        let mut files = HashMap::new();
+        files.insert(
+            "main.beancount".to_string(),
+            "2024-01-01 open Assets:Cash\ninclude \"https://beancount.io/prices/BTCUSD\"\n"
+                .to_string(),
+        );
+        let result = validate_with_filesystem(
+            Box::new(VirtualFileSystem::from_files(files)),
+            "main.beancount",
+        );
+
+        let err = result
+            .errors
+            .iter()
+            .find(|e| e.message.contains("not found") || e.message.contains("failed to read"))
+            .expect("expected a missing-include error");
+        assert_eq!(
+            err.file.as_deref(),
+            Some("main.beancount"),
+            "Filename must be the include site, not Unknown: {err:?}"
+        );
+        assert_eq!(
+            err.line,
+            Some(2),
+            "Line must be the include directive, not Unknown: {err:?}"
+        );
     }
 }

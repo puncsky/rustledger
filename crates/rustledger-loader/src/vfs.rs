@@ -101,6 +101,7 @@ impl FileSystem for DiskFileSystem {
         let bytes = fs::read(path).map_err(|e| LoadError::Io {
             path: path.to_path_buf(),
             source: e,
+            include_site: None,
         })?;
 
         // Try zero-copy conversion first (common case), fall back to lossy
@@ -271,6 +272,7 @@ impl FileSystem for VirtualFileSystem {
                     std::io::ErrorKind::NotFound,
                     format!("file not found in virtual filesystem: {}", path.display()),
                 ),
+                include_site: None,
             })
     }
 

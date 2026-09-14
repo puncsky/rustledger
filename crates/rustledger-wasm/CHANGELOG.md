@@ -82,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `queryMultiFile`, `hashSources`). ~150 lines of necessary glue,
   down from ~480.
 
+### Bug Fixes
+
+- missing-include load errors now carry the `include` directive's
+  `file`/`line` on `BeancountError`, so hosts are not forced to show
+  "Unknown" for Filename/Line when a target is absent from the VFS
+
 ## [0.13.0](https://github.com/rustledger/rustledger/compare/v0.12.0...v0.13.0) - 2026-04-21
 
 ### Bug Fixes

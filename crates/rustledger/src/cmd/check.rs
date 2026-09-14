@@ -368,7 +368,11 @@ pub fn run_with_writer<W: Write>(args: &Args, stdout: &mut W) -> Result<ExitCode
                     error_count += found;
                 }
             }
-            LoadError::Io { path, source } => {
+            LoadError::Io {
+                path,
+                source,
+                include_site,
+            } => {
                 let path_str = path.display().to_string();
                 // Tally and filter like every other diagnostic, so
                 // --show-summary counts this and --exclude-rules can hide it.
@@ -376,12 +380,27 @@ pub fn run_with_writer<W: Write>(args: &Args, stdout: &mut W) -> Result<ExitCode
                 // diagnostic must not change the exit code.
                 let shown = rules.keep("E0001");
                 if json_mode && shown {
+                    // Prefer the include site when present so JSON consumers
+                    // land on the directive the user wrote, not line 1 of a
+                    // missing target that never existed on disk.
+                    let (file, line, column, end_line, end_column) =
+                        if let Some(site) = include_site {
+                            if let Some(src) = load_result.source_map.get(site.file_id as usize) {
+                                let (sl, sc) = src.line_col(site.span.start);
+                                let (el, ec) = src.line_col(site.span.end);
+                                (site.file.display().to_string(), sl, sc, el, ec)
+                            } else {
+                                (site.file.display().to_string(), 1, 1, 1, 1)
+                            }
+                        } else {
+                            (path_str.clone(), 1, 1, 1, 1)
+                        };
                     diagnostics.push(JsonDiagnostic {
-                        file: path_str,
-                        line: 1,
-                        column: 1,
-                        end_line: 1,
-                        end_column: 1,
+                        file,
+                        line,
+                        column,
+                        end_line,
+                        end_column,
                         severity: "error".to_string(),
                         phase: "parse".to_string(),
                         code: "E0001".to_string(),

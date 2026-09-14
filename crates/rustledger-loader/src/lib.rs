@@ -110,6 +110,23 @@ use thiserror::Error;
 // body was removed — all callers go through the injected filesystem so the
 // include path-traversal guard normalizes consistently in one namespace.
 
+/// Source location of an `include` that triggered a load failure.
+///
+/// Missing-include and similar IO failures historically carried only the
+/// *target* path. Hosts that surface `file`/`line` (WASM `BeancountError`,
+/// the errors UI) then had nothing to show for the directive the user
+/// wrote. This records the including file so diagnostics can point at the
+/// `include` itself.
+#[derive(Debug, Clone)]
+pub struct IncludeSite {
+    /// File containing the `include` directive.
+    pub file: PathBuf,
+    /// Byte span of the `include` directive in that file.
+    pub span: Span,
+    /// Source-map id of [`Self::file`].
+    pub file_id: u16,
+}
+
 /// Errors that can occur during loading.
 #[derive(Debug, Error)]
 pub enum LoadError {
@@ -121,6 +138,8 @@ pub enum LoadError {
         /// The underlying IO error.
         #[source]
         source: std::io::Error,
+        /// When this failure came from resolving an `include`, the include site.
+        include_site: Option<IncludeSite>,
     },
 
     /// Include cycle detected.
@@ -215,6 +234,33 @@ pub enum LoadError {
         /// The maximum number of files supported.
         limit: usize,
     },
+}
+
+impl LoadError {
+    /// Attach the `include` site that caused this failure.
+    ///
+    /// Only [`LoadError::Io`] carries an include site today — other variants
+    /// either already embed enough context or are not produced from an
+    /// include walk. Non-IO errors are returned unchanged.
+    #[must_use]
+    pub fn at_include(mut self, site: IncludeSite) -> Self {
+        if let Self::Io {
+            include_site: slot, ..
+        } = &mut self
+        {
+            *slot = Some(site);
+        }
+        self
+    }
+
+    /// The `include` site attached to this error, if any.
+    #[must_use]
+    pub const fn include_site(&self) -> Option<&IncludeSite> {
+        match self {
+            Self::Io { include_site, .. } => include_site.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 /// Convert a 0-based file index to the `u16` file id stored on `Spanned`
@@ -557,7 +603,7 @@ impl Loader {
         // Mark as loading (update both stack and set)
         self.include_stack_set.insert(path_buf.clone());
         self.include_stack.push(path_buf.clone());
-        self.loaded_files.insert(path_buf);
+        self.loaded_files.insert(path_buf.clone());
 
         // Collect parse errors
         if !result.errors.is_empty() {
@@ -598,7 +644,12 @@ impl Loader {
 
         // Process includes (with glob pattern support)
         let base_dir = path.parent().unwrap_or(Path::new("."));
-        for (include_path, _span) in &result.includes {
+        for (include_path, span) in &result.includes {
+            let include_site = IncludeSite {
+                file: path_buf.clone(),
+                span: *span,
+                file_id: fid_u16,
+            };
             // Check if the include path contains glob metacharacters
             // (check on include_path, not full_path, to avoid false positives from directory names)
             let has_glob = is_glob_pattern(include_path);
@@ -734,7 +785,7 @@ impl Loader {
                     if let Err(e) = self.load_recursive(
                         canonical, pre, directives, options, plugins, source_map, errors,
                     ) {
-                        errors.push(e);
+                        errors.push(e.at_include(include_site.clone()));
                     }
                 }
             } else {
@@ -743,7 +794,7 @@ impl Loader {
                     if let Err(e) = self.load_recursive(
                         &canonical, None, directives, options, plugins, source_map, errors,
                     ) {
-                        errors.push(e);
+                        errors.push(e.at_include(include_site.clone()));
                     }
                 }
             }
@@ -988,7 +1039,11 @@ include "level2.beancount"
     #[test]
     fn test_virtual_filesystem_missing_include() {
         let mut vfs = VirtualFileSystem::new();
-        vfs.add_file("main.beancount", r#"include "nonexistent.beancount""#);
+        // Put the include on line 2 so the attached site is unambiguous.
+        vfs.add_file(
+            "main.beancount",
+            "2024-01-01 open Assets:Cash\ninclude \"nonexistent.beancount\"\n",
+        );
 
         let result = Loader::new()
             .with_filesystem(Box::new(vfs))
@@ -999,6 +1054,20 @@ include "level2.beancount"
         assert!(!result.errors.is_empty());
         let error_msg = result.errors[0].to_string();
         assert!(error_msg.contains("not found") || error_msg.contains("Io"));
+
+        // The IO error must name the include site (main.beancount:2), not just
+        // the missing target — otherwise WASM/hosts report Filename/Line as
+        // Unknown.
+        let site = result.errors[0]
+            .include_site()
+            .expect("missing-include IO error must carry the include site");
+        assert_eq!(site.file, PathBuf::from("main.beancount"));
+        let file = result
+            .source_map
+            .get(site.file_id as usize)
+            .expect("include site file_id must resolve in the source map");
+        let (line, _col) = file.line_col(site.span.start);
+        assert_eq!(line, 2, "include site should be line 2, got {line}");
     }
 
     #[test]
