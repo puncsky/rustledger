@@ -348,7 +348,7 @@ fn brent(series: &[(f64, f64)], tol: f64) -> Option<f64> {
             || (used_bisection && (b - c).abs() < STEP_EPSILON)
             || (!used_bisection && (c - d).abs() < STEP_EPSILON);
         if bisect {
-            s = 0.5 * (a + b);
+            s = f64::midpoint(a, b);
         }
         used_bisection = bisect;
         #[cfg(test)]

@@ -27,8 +27,13 @@ jobs:
     # workflow's own push, and re-triggering on it can cause an infinite
     # loop if the regen produces a no-op tree (see "Skip when nothing
     # actually changed" below for the structural fix).
+    # Same-repo PRs only. Every fetch below reads `repos/$REPO/contents/...?ref=PR_SHA`
+    # and the commit step updates `repos/$REPO/git/refs/heads/$BRANCH`, neither of
+    # which reaches a branch in a fork, so a maintainer's fork PR used to fail
+    # partway. Skip it up front instead.
     if: |
       github.actor != 'rustledger-bot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       (
         github.actor == 'dependabot[bot]' ||
         github.event.pull_request.author_association == 'OWNER' ||
@@ -78,12 +83,31 @@ jobs:
                 --jq '.content' | base64 -d > "$file"
             fi
           done
+      - name: Fetch PR's supply-chain store
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        # Regenerate against the PR's OWN store, not the base branch's. Starting
+        # from base silently discards anything the PR changed in supply-chain/:
+        # PR #2321 added [[trusted.*]] entries, and this job re-added the
+        # exemptions they replaced and pruned the publisher rows they needed from
+        # imports.lock, which then failed `cargo vet --locked` as misformatted. It
+        # reruns on every push, so the PR could not keep its own change.
+        # These are data files that cargo-vet parses; nothing here executes them.
+        # The job is already gated to dependabot and OWNER/MEMBER authors, who can
+        # write to supply-chain/ directly.
+        run: |
+          for f in audits.toml config.toml imports.lock; do
+            gh api "repos/$REPO/contents/supply-chain/$f?ref=$PR_SHA" \
+              --jq '.content' | base64 -d > "supply-chain/$f"
+          done
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
         with:
-          toolchain: 1.97.0 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
+          toolchain: 1.98.1 # pinned stable — bump deliberately, IN LOCKSTEP with rust-toolchain.toml (see #1745, #1750)
       - name: Install cargo-vet
-        uses: taiki-e/install-action@7be9fd86bd1707236395105d6e9329dd1511a7e1 # v2
+        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
         with:
           tool: cargo-vet
       - name: Regenerate exemptions
@@ -91,6 +115,8 @@ jobs:
       - name: Commit and push changes
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # The commit that the store and Cargo.lock above were fetched from.
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
           # SECURITY: Pass via env vars to prevent shell injection from branch names
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
@@ -106,6 +132,14 @@ jobs:
             # Get the current commit SHA
             CURRENT_SHA=$(gh api "repos/$REPO/git/refs/heads/$BRANCH" --jq '.object.sha')
             echo "Current commit: $CURRENT_SHA"
+            # Everything above was fetched at the event's PR_SHA. If the branch has moved
+            # since (a newer push during this run), writing these files onto the new head
+            # would replace that commit's supply-chain/ with stale data. The newer push
+            # starts its own run, so leave the branch to it.
+            if [ "$CURRENT_SHA" != "$PR_SHA" ]; then
+              echo "Branch moved from $PR_SHA to $CURRENT_SHA during this run; skipping so the newer run applies"
+              exit 0
+            fi
 
             # Get the tree SHA from the current commit
             BASE_TREE=$(gh api "repos/$REPO/git/commits/$CURRENT_SHA" --jq '.tree.sha')

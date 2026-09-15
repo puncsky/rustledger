@@ -43,7 +43,9 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
+        # x86_64-darwin was dropped here when Nixpkgs 26.11 removed the platform
+        # (every output failed to evaluate). Intel macOS release binaries are
+        # unaffected: release-build.yml builds them with cargo, not Nix.
         "aarch64-darwin"
       ];
 
@@ -123,7 +125,7 @@
             # Only add legacy Darwin deps on older nixpkgs without apple-sdk.
             # Modern nixpkgs (25.05+): SDK frameworks are in stdenv automatically,
             # and libiconv is propagated by the SDK.
-            ++ lib.optionals (pkgs.stdenv.isDarwin && !(pkgs ? apple-sdk)) [
+            ++ lib.optionals (pkgs.stdenv.hostPlatform.isDarwin && !(pkgs ? apple-sdk)) [
               pkgs.libiconv
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
@@ -148,7 +150,7 @@
             pname = "rustledger-vscode-vsix";
             version = vscodeVersion;
             src = ./packages/vscode;
-            npmDepsHash = "sha256-0qRLrxJPq3RmFghKopUevo6OG7Ck6wW9hLH8y8wOggw=";
+            npmDepsHash = "sha256-8WBRNglpwejGDI5UBsIL4f/XYy44cjIhlJifa8UIJBs=";
 
             # esbuild's npm postinstall downloads a prebuilt binary for the host
             # platform, and the build sandbox has no network. Skip install scripts
@@ -286,7 +288,6 @@
 
             # TLA+ tools
             tlaplus
-            tlaplusToolbox
 
             # General dev tools
             just
@@ -318,18 +319,13 @@
             # prepends `scripts/bin/` to PATH so the wrappers act as
             # transparent shims. One-time setup:
             #   ./scripts/compat-container-build.sh
-          ];
+          ]
+          # The TLA+ Toolbox GUI is x86_64-linux only in nixpkgs; listing it
+          # unconditionally made `nix develop` fail to evaluate everywhere else.
+          ++ lib.optional (lib.meta.availableOn pkgs.stdenv.hostPlatform pkgs.tlaplusToolbox) pkgs.tlaplusToolbox;
 
         in
         {
-          # Acknowledge the upstream x86_64-darwin deprecation (Nixpkgs 26.11+).
-          # Silences the evaluation warning while we continue to ship Intel macOS
-          # binaries; revisit when Nixpkgs fully drops the platform.
-          _module.args.pkgs = import inputs.nixpkgs {
-            inherit system;
-            config.allowDeprecatedx86_64Darwin = true;
-          };
-
           # Formatters
           treefmt = {
             projectRootFile = "flake.nix";

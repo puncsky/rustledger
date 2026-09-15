@@ -49,7 +49,7 @@ jobs:
           # bumps this automatically -- dependabot updates the action SHA
           # above, not this input -- so raise it deliberately when there is a
           # reason to.
-          bun-version: 1.4.0
+          bun-version: 1.4.2
       - name: Install dependencies
         working-directory: website
         run: bun install --frozen-lockfile
