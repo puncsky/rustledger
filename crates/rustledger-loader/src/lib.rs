@@ -1071,6 +1071,39 @@ include "level2.beancount"
     }
 
     #[test]
+    fn test_virtual_filesystem_nested_missing_include_names_the_inner_include() {
+        let mut vfs = VirtualFileSystem::new();
+        vfs.add_file(
+            "main.beancount",
+            "2024-01-01 open Assets:Cash\ninclude \"sub/present.beancount\"\n",
+        );
+        vfs.add_file(
+            "sub/present.beancount",
+            "2024-01-01 open Expenses:Food\ninclude \"nested-missing.beancount\"\n",
+        );
+
+        let result = Loader::new()
+            .with_filesystem(Box::new(vfs))
+            .load(Path::new("main.beancount"))
+            .unwrap();
+
+        // The site is the `include` that names the missing file, in the file that
+        // wrote it, not the outer `include` that pulled that file in.
+        let site = result
+            .errors
+            .iter()
+            .find_map(LoadError::include_site)
+            .expect("nested missing-include IO error must carry the include site");
+        assert_eq!(site.file, PathBuf::from("sub/present.beancount"));
+        let file = result
+            .source_map
+            .get(site.file_id as usize)
+            .expect("include site file_id must resolve in the source map");
+        let (line, _col) = file.line_col(site.span.start);
+        assert_eq!(line, 2, "nested include site should be line 2, got {line}");
+    }
+
+    #[test]
     fn test_virtual_filesystem_glob_include() {
         let mut vfs = VirtualFileSystem::new();
         vfs.add_file(

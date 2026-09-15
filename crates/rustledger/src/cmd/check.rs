@@ -395,6 +395,13 @@ pub fn run_with_writer<W: Write>(args: &Args, stdout: &mut W) -> Result<ExitCode
                         } else {
                             (path_str.clone(), 1, 1, 1, 1)
                         };
+                    // With an include site, `file` names the including file, so the
+                    // message has to carry the missing target or nothing does.
+                    let message = if include_site.is_some() {
+                        format!("failed to read included file {path_str}: {source}")
+                    } else {
+                        format!("failed to read file: {source}")
+                    };
                     diagnostics.push(JsonDiagnostic {
                         file,
                         line,
@@ -404,7 +411,7 @@ pub fn run_with_writer<W: Write>(args: &Args, stdout: &mut W) -> Result<ExitCode
                         severity: "error".to_string(),
                         phase: "parse".to_string(),
                         code: "E0001".to_string(),
-                        message: format!("failed to read file: {source}"),
+                        message,
                         hint: None,
                         context: None,
                     });

@@ -1994,3 +1994,48 @@ fn test_journal_limit_preserves_report_order() {
         );
     }
 }
+
+/// A missing `include` is reported at the `include` directive, and the message
+/// still names the missing target now that `file` is the including file (#2322).
+#[test]
+fn test_check_json_missing_include_points_at_include_directive() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let main = dir.path().join("main.beancount");
+    std::fs::write(
+        &main,
+        "2024-01-01 open Assets:Cash\ninclude \"missing.beancount\"\n",
+    )
+    .expect("write");
+
+    let output = Command::new(require_rledger!())
+        .args(["check", "--format", "json", "--no-cache"])
+        .arg(&main)
+        .output()
+        .expect("failed to run rledger check");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("check --format json should produce valid JSON");
+
+    let diag = json["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .find(|d| d["code"] == "E0001")
+        .unwrap_or_else(|| panic!("expected an E0001 diagnostic; got json: {json}"));
+    assert!(
+        diag["file"]
+            .as_str()
+            .is_some_and(|f| f.ends_with("main.beancount")),
+        "file should be the including file: {diag}"
+    );
+    assert_eq!(
+        diag["line"], 2,
+        "line should be the include directive: {diag}"
+    );
+    assert!(
+        diag["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("missing.beancount")),
+        "message must name the missing target: {diag}"
+    );
+}
